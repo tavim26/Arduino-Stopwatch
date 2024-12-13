@@ -1,90 +1,137 @@
 #include <WiFi.h>
-#include <WiFiAP.h>
-#include <WiFiClient.h>
+#include <WebServer.h>
 
-// Șiruri de caractere cu mesaje predefinite
-const String SETUP_INIT = "SETUP: Initializing ESP32 dev board";
-const String SETUP_ERROR = "!!ERROR!! SETUP: Unable to start SoftAP mode";
-const String SETUP_SERVER_START = "SETUP: HTTP server started --> IP addr: ";
-const String SETUP_SERVER_PORT = " on port: ";
-const String INFO_NEW_CLIENT = "New client connected";
-const String INFO_DISCONNECT_CLIENT = "Client disconnected";
+const char* ssid = "StopWatch";     // Numele rețelei Wi-Fi
+const char* password = "12345678+"; // Parola rețelei Wi-Fi
 
-// Un header HTTP începe întotdeauna cu un cod de răspuns (e.g. HTTP/1.1 200 OK)
-// și tipul conținutului, pentru a informa clientul, urmat de o linie goală:
-const String HTTP_HEADER = "HTTP/1.1 200 OK\r\nContent-type:text/html\r\n\r\n";
-const String HTML_WELCOME = "<h1>Welcome to your ESP32 Web Server!</h1>";
+WebServer server(80);
 
-// Constante pentru configurarea de bază a WIFI
-// SSID (Service Set IDentifier), numele rețelei
-const char *SSID = "<your_unique_SSID>";
+unsigned long startTime = 0;      // Momentul în care a început cronometrul
+unsigned long elapsedTime = 0;    // Timpul trecut salvat (în secunde)
+unsigned long countdownTime = 0;  // Timpul pentru countdown (în secunde)
+bool running = false;             // Flag pentru dacă cronometrul rulează
+bool isCountdown = false;         // Flag pentru modul countdown
 
-// Parola pentru rețea
-// Implicit, ESP32 foloseste modul WPA/WPA2
-// astfel că parola trebuie să aibă între 8 și 63 caractere ASCII
-const char *PASS = "<your_password_here>";
+// Funcție pentru generarea paginii HTML
+String generateHTML() {
+  String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Cronometru ESP32</title>";
+  html += "<script>";
+  html += "function updateTime() {";
+  html += "  fetch('/time').then(response => response.text()).then(data => {";
+  html += "    document.getElementById('time').innerText = data;";
+  html += "    setTimeout(updateTime, 1000);";
+  html += "  });";
+  html += "}";
+  html += "function startTimer() { fetch('/start'); }";
+  html += "function stopTimer() { fetch('/stop'); }";
+  html += "function resetTimer() { fetch('/reset'); }";
+  html += "function setTime() {";
+  html += "  let time = document.getElementById('time_input').value;";
+  html += "  if(time && time > 0) fetch('/set_time?time=' + time);";
+  html += "}";
+  html += "window.onload = updateTime;";
+  html += "</script></head><body>";
+  html += "<h1>Cronometru</h1>";
+  html += "<p id='time'>00:00:00</p>";
+  html += "<label for='time_input'>Setează timpul (în secunde):</label>";
+  html += "<input type='number' id='time_input' min='1'>";
+  html += "<button onclick='setTime()'>Setează Countdown</button>";
+  html += "<button onclick='startTimer()'>Start</button>";
+  html += "<button onclick='stopTimer()'>Stop</button>";
+  html += "<button onclick='resetTimer()'>Reset</button>";
+  html += "</body></html>";
+  return html;
+}
 
-// Portul implicit pentru un server HTTP este 80, conform RFC1340
-const int HTTP_PORT_NO = 80;
+// Handlere pentru server
+void handleRoot() {
+  server.send(200, "text/html", generateHTML());
+}
 
-// Initializare server HTTP pe portul 80
-WiFiServer HttpServer(HTTP_PORT_NO);
+void handleTime() {
+  unsigned long currentTime = millis();
+  unsigned long displayTime = elapsedTime;
+
+  if (running) {
+    // Calculăm timpul curent, fie countdown, fie cronometrul normal
+    if (isCountdown) {
+      displayTime = countdownTime - (currentTime - startTime) / 1000;
+      if (displayTime <= 0) {
+        displayTime = 0;
+        running = false; // Oprire automată la final
+      }
+    } else {
+      displayTime = elapsedTime + (currentTime - startTime) / 1000;
+    }
+  }
+
+  // Convertim timpul în ore, minute, secunde
+  unsigned long seconds = displayTime % 60;
+  unsigned long minutes = (displayTime / 60) % 60;
+  unsigned long hours = (displayTime / 3600);
+
+  char timeString[9];
+  sprintf(timeString, "%02lu:%02lu:%02lu", hours, minutes, seconds);
+  server.send(200, "text/plain", timeString);
+}
+
+void handleStart() {
+  if (!running) {
+    running = true;
+    startTime = millis();
+  }
+  server.send(200, "text/plain", "Started");
+}
+
+void handleStop() {
+  if (running) {
+    elapsedTime += (millis() - startTime) / 1000; // Salvează timpul total
+    running = false;
+  }
+  server.send(200, "text/plain", "Stopped");
+}
+
+void handleReset() {
+  running = false;
+  elapsedTime = 0;
+  countdownTime = 0;
+  isCountdown = false;
+  server.send(200, "text/plain", "Reset");
+}
+
+void handleSetTime() {
+  if (server.hasArg("time")) {
+    countdownTime = server.arg("time").toInt();
+    elapsedTime = 0;
+    isCountdown = true;
+    running = false; // Nu pornește automat
+  }
+  server.send(200, "text/plain", "Countdown set");
+}
 
 void setup() {
-  Serial.begin(9600);
-  if (!WiFi.softAP(SSID)) {
-    // înlocuiți cu if (!WiFi.softAP(SSID, PASS)) pentru a utiliza parola
-    Serial.println(SETUP_ERROR);
-    // Dacă nu se poate activa punctul de acces, blochează programul aici
-    while (1)
-      ;
+  Serial.begin(115200);
+
+  if (WiFi.softAP(ssid, password)) {
+    Serial.println("Wi-Fi AP started!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.softAPIP());
+  } else {
+    Serial.println("Error: Could not start Wi-Fi!");
+    while (1);
   }
-  // Citire adresă IP a AP-ului pentru mesaj de informare
-  const IPAddress accessPointIP = WiFi.softAPIP();
-  const String webServerInfoMessage = SETUP_SERVER_START + accessPointIP.toString()
-                                      + SETUP_SERVER_PORT + HTTP_PORT_NO;
-  // Pornire server HTTP
-  HttpServer.begin();
-  Serial.println(webServerInfoMessage);
+
+  server.on("/", handleRoot);
+  server.on("/time", handleTime);
+  server.on("/start", handleStart);
+  server.on("/stop", handleStop);
+  server.on("/reset", handleReset);
+  server.on("/set_time", handleSetTime);
+
+  server.begin();
+  Serial.println("HTTP server started.");
 }
 
 void loop() {
-  WiFiClient client = HttpServer.available();  // Ascultă pentru clienți noi
-  if (client) {                                // dacă avem un client conectat,
-    Serial.println(INFO_NEW_CLIENT);           // trimite un mesaj pe portul serial
-    String currentLine = "";                   // Șir pentru a citi datele de la client
-    while (client.connected()) {               // cât timp clientul este conectat
-      if (client.available()) {                // dacă avem caractere de citit de la client,
-        const char c = client.read();          // citește un caracter, apoi
-        Serial.write(c);                       // tiparește la serial monitor
-        if (c == '\n') {                       // dacă caracterul este new line
-          // dacă linia este goală, avem două caractere newline consecutive
-          // asta înseamnă finalul cererii HTTP de la client, deci trimitem răspuns:
-          if (currentLine.length() == 0) {
-            // Trimite mesaj de bun venit
-            printWelcomePage(client);
-            break;
-          } else currentLine = "";
-        } else if (c != '\r') {  // dacă există alte caractere în afară de carriage return
-          currentLine += c;      // se adaugă la linia curentă
-        }
-      }
-    }
-
-    // se închide conexiunea:
-    client.stop();
-    Serial.println(INFO_DISCONNECT_CLIENT);
-    Serial.println();
-  }
-}
-
-void printWelcomePage(WiFiClient client) {
-  // Răspunsul către client trebuie să conțină headerele corecte
-  client.println(HTTP_HEADER);
-
-  // Trimitem mesajul HTML
-  client.print(HTML_WELCOME);
-
-  // Răspunsul HTTP se termină cu o linie goală
-  client.println();
+  server.handleClient();
 }
