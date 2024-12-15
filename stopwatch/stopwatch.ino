@@ -38,8 +38,32 @@ bool runningLapCounter = false;
 
 // Generarea interfeței HTML
 String generateHTML() {
-  String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>ESP32 Stopwatch</title>";
-  html += "<style>body { font-family: Arial; } button { margin: 5px; }</style>";
+  String html = "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>ESP32 Stopwatch</title>";
+  
+  // Stiluri CSS pentru un design responsive cu tematica albastră
+  html += "<style>";
+  html += "body { font-family: 'Arial', sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; color: #333;}";
+  html += "h1, h2 { text-align: center; color: #007bff; }"; // Albastru
+  html += "h1 { margin-top: 20px; font-size: 24px; }";
+  html += "h2 { margin-top: 10px; font-size: 20px; }";
+  html += "p { font-size: 36px; text-align: center; margin: 10px; }";
+  html += "button { padding: 15px 20px; margin: 10px 0; font-size: 18px; background-color: #007bff; border: none; color: white; border-radius: 5px; cursor: pointer; width: 100%; transition: background-color 0.3s; }";
+  html += "button:hover { background-color: #0056b3; }"; // Albastru închis
+  html += "input[type='number'] { font-size: 18px; padding: 10px; width: 100%; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; }";
+  html += "select { font-size: 18px; padding: 10px; width: 100%; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; }";
+  html += "div { padding: 20px; max-width: 400px; margin: auto; background-color: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); margin-top: 20px; }";
+  
+  // Responsivitate pentru mobil
+  html += "@media screen and (max-width: 600px) {";
+  html += "  button { font-size: 16px; padding: 12px 15px; }";
+  html += "  p { font-size: 30px; }";
+  html += "  h1 { font-size: 22px; }";
+  html += "  h2 { font-size: 18px; }";
+  html += "}";
+
+  html += "</style>";
+  
+  // Script pentru actualizarea cronometrului
   html += "<script>";
   html += "function updateTime() {";
   html += "  fetch('/time').then(response => response.json()).then(data => {";
@@ -48,20 +72,25 @@ String generateHTML() {
   html += "    document.getElementById('laps').innerText = data.laps;";
   html += "    setTimeout(updateTime, 1000);";
   html += "  });";
-  html += "}";
+  html += "}"; 
   html += "function sendRequest(path) { fetch(path); }";
   html += "window.onload = updateTime;";
-  html += "</script></head><body>";
+  html += "</script>";
+  
+  html += "</head><body>";
 
   // Secțiunea pentru cronometru
+  html += "<div>";
   html += "<h1>ESP32 Stopwatch</h1>";
   html += "<h2>Chronometer</h2>";
   html += "<p id='chronometer'>00:00:00</p>";
-  html += "<button onclick=\"sendRequest('/startChronometer')\">Start Chronometer</button>";
-  html += "<button onclick=\"sendRequest('/stopChronometer')\">Stop Chronometer</button>";
-  html += "<button onclick=\"sendRequest('/resetChronometer')\">Reset Chronometer</button>";
+  html += "<button onclick=\"sendRequest('/startChronometer')\">Start</button>";
+  html += "<button onclick=\"sendRequest('/stopChronometer')\">Stop</button>";
+  html += "<button onclick=\"sendRequest('/resetChronometer')\">Reset</button>";
+  html += "</div>";
 
   // Secțiunea pentru timer
+  html += "<div>";
   html += "<h2>Timer</h2>";
   html += "<p id='timer'>00:00:00</p>";
   html += "<select id='timer_select'>";
@@ -73,18 +102,23 @@ String generateHTML() {
   html += "<button onclick=\"sendRequest('/startTimer?time=' + document.getElementById('timer_select').value)\">Start Timer</button>";
   html += "<button onclick=\"sendRequest('/stopTimer')\">Stop Timer</button>";
   html += "<button onclick=\"sendRequest('/resetTimer')\">Reset Timer</button>";
+  html += "</div>";
 
   // Secțiunea pentru lap counter
+  html += "<div>";
   html += "<h2>Lap Counter</h2>";
   html += "<p id='laps'>0</p>";
   html += "<label for='lap_interval'>Set Lap Interval (seconds):</label>";
   html += "<input type='number' id='lap_interval' min='1' step='1'>";
   html += "<button onclick=\"sendRequest('/startLapCounter?interval=' + document.getElementById('lap_interval').value)\">Start Lap Counter</button>";
   html += "<button onclick=\"sendRequest('/resetLapCounter')\">Reset Lap Counter</button>";
+  html += "</div>";
 
   html += "</body></html>";
   return html;
 }
+
+
 
 // Funcție pentru formatarea timpului în format HH:MM:SS
 String formatTime(unsigned long seconds) {
