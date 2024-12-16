@@ -1,7 +1,6 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-// Prototipuri pentru funcții
 void handleStartChronometer();
 void handleStopChronometer();
 void handleResetChronometer();
@@ -15,8 +14,8 @@ void handleResetLapCounter();
 void handleTime();
 
 // Configurare rețea Wi-Fi
-const char* ssid = "StopWatch";     // Numele rețelei Wi-Fi
-const char* password = "12345678+"; // Parola rețelei Wi-Fi
+const char* ssid = "StopWatch";     
+const char* password = "12345678+"; 
 
 WebServer server(80);
 
@@ -33,27 +32,27 @@ bool runningTimer = false;
 // Variabile pentru lap counter
 unsigned int lapCount = 0;
 unsigned long lapStartTime = 0;
-unsigned long lapInterval = 0; // Intervalul setat de utilizator (în secunde)
+unsigned long lapInterval = 0; 
 bool runningLapCounter = false;
 
-// Generarea interfeței HTML
-String generateHTML() {
+String generateHTML() 
+{
   String html = "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>ESP32 Stopwatch</title>";
   
-  // Stiluri CSS pentru un design responsive cu tematica albastră
+  // CSS
   html += "<style>";
   html += "body { font-family: 'Arial', sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; color: #333;}";
-  html += "h1, h2 { text-align: center; color: #007bff; }"; // Albastru
+  html += "h1, h2 { text-align: center; color: #007bff; }";
   html += "h1 { margin-top: 20px; font-size: 24px; }";
   html += "h2 { margin-top: 10px; font-size: 20px; }";
   html += "p { font-size: 36px; text-align: center; margin: 10px; }";
   html += "button { padding: 15px 20px; margin: 10px 0; font-size: 18px; background-color: #007bff; border: none; color: white; border-radius: 5px; cursor: pointer; width: 100%; transition: background-color 0.3s; }";
-  html += "button:hover { background-color: #0056b3; }"; // Albastru închis
+  html += "button:hover { background-color: #0056b3; }"; 
   html += "input[type='number'] { font-size: 18px; padding: 10px; width: 100%; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; }";
   html += "select { font-size: 18px; padding: 10px; width: 100%; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; }";
   html += "div { padding: 20px; max-width: 400px; margin: auto; background-color: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); margin-top: 20px; }";
   
-  // Responsivitate pentru mobil
+  // Optimizare mobile device
   html += "@media screen and (max-width: 600px) {";
   html += "  button { font-size: 16px; padding: 12px 15px; }";
   html += "  p { font-size: 30px; }";
@@ -79,7 +78,7 @@ String generateHTML() {
   
   html += "</head><body>";
 
-  // Secțiunea pentru cronometru
+  // Cronometru
   html += "<div>";
   html += "<h1>ESP32 Stopwatch</h1>";
   html += "<h2>Chronometer</h2>";
@@ -89,7 +88,7 @@ String generateHTML() {
   html += "<button onclick=\"sendRequest('/resetChronometer')\">Reset</button>";
   html += "</div>";
 
-  // Secțiunea pentru timer
+  // Timer
   html += "<div>";
   html += "<h2>Timer</h2>";
   html += "<p id='timer'>00:00:00</p>";
@@ -104,7 +103,7 @@ String generateHTML() {
   html += "<button onclick=\"sendRequest('/resetTimer')\">Reset Timer</button>";
   html += "</div>";
 
-  // Secțiunea pentru lap counter
+  // lap counter
   html += "<div>";
   html += "<h2>Lap Counter</h2>";
   html += "<p id='laps'>0</p>";
@@ -116,146 +115,193 @@ String generateHTML() {
 
   html += "</body></html>";
   return html;
+
 }
 
 
 
-// Funcție pentru formatarea timpului în format HH:MM:SS
-String formatTime(unsigned long seconds) {
+// Formatare timp HH:MM:SS
+String formatTime(unsigned long seconds) 
+{
   unsigned long hrs = seconds / 3600;
   unsigned long mins = (seconds / 60) % 60;
   unsigned long secs = seconds % 60;
+
   char timeString[9];
   sprintf(timeString, "%02lu:%02lu:%02lu", hrs, mins, secs);
+
   return String(timeString);
 }
 
-// Gestionarea timpului pentru toate funcționalitățile
-void handleTime() {
+// Gestionare timp
+void handleTime() 
+{
   unsigned long currentTime = millis();
 
-  // Actualizarea cronometrului
+  // Actualizare cronometru
   unsigned long displayChronometerTime = elapsedChronometerTime;
-  if (runningChronometer) {
+  if (runningChronometer) 
+  {
     displayChronometerTime += (currentTime - startChronometerTime) / 1000;
   }
 
-  // Actualizarea timerului
+  // Actualizare timer
   unsigned long displayTimerTime = countdownTime;
-  if (runningTimer) {
+  if (runningTimer) 
+  {
     displayTimerTime = countdownTime - (currentTime - startTimerTime) / 1000;
-    if (displayTimerTime <= 0) {
+
+    if (displayTimerTime <= 0) 
+    {
       displayTimerTime = 0;
-      runningTimer = false;  // Timer oprit la 0
+      runningTimer = false;  
     }
   }
 
-  // Actualizarea lap counter
+  // Actualizare lap 
   unsigned long displayLapTime = 0;
-  if (runningLapCounter) {
+
+  if (runningLapCounter) 
+  {
     displayLapTime = (currentTime - lapStartTime) / 1000;
-    if (lapInterval > 0 && displayLapTime >= lapInterval) {
+
+    if (lapInterval > 0 && displayLapTime >= lapInterval) 
+    {
       lapCount++;
-      lapStartTime = currentTime;  // Resetează timpul pentru următorul lap
+      lapStartTime = currentTime; 
     }
   }
 
-  // Construirea răspunsului JSON
+
+  // Construirea  JSON
   String json = "{";
   json += "\"chronometer\":\"" + formatTime(displayChronometerTime) + "\",";
   json += "\"timer\":\"" + formatTime(displayTimerTime) + "\",";
   json += "\"laps\":\"" + String(lapCount) + "\"";
   json += "}";
   server.send(200, "application/json", json);
+
 }
 
-// Handlere pentru Lap Counter
-void handleStartLapCounter() {
-  if (server.hasArg("interval")) {
+
+// Handle pentru Lap Counter
+void handleStartLapCounter() 
+{
+  if (server.hasArg("interval")) 
+  {
     lapInterval = server.arg("interval").toInt();
-    if (lapInterval > 0) {
+
+    if (lapInterval > 0) 
+    {
       lapStartTime = millis();
       runningLapCounter = true;
-      lapCount = 0;  // Resetează numărul de ture
+      lapCount = 0;  
       server.send(200, "text/plain", "Lap counter started");
-    } else {
+
+    } 
+    else 
+    {
       server.send(400, "text/plain", "Invalid interval");
     }
-  } else {
+  } 
+  else 
+  {
     server.send(400, "text/plain", "Interval not provided");
   }
 }
 
-void handleResetLapCounter() {
+void handleResetLapCounter() 
+{
   runningLapCounter = false;
   lapCount = 0;
   lapInterval = 0;
   server.send(200, "text/plain", "Lap counter reset");
 }
 
-// Funcții pentru Cronometru
-void handleStartChronometer() {
-  if (!runningChronometer) {
+// pentru cronomteru
+void handleStartChronometer() 
+{
+  if (!runningChronometer) 
+  {
     runningChronometer = true;
     startChronometerTime = millis();
   }
   server.send(200, "text/plain", "Chronometer started");
 }
 
-void handleStopChronometer() {
-  if (runningChronometer) {
+void handleStopChronometer() 
+{
+  if (runningChronometer) 
+  {
     elapsedChronometerTime += (millis() - startChronometerTime) / 1000;
     runningChronometer = false;
   }
   server.send(200, "text/plain", "Chronometer stopped");
 }
 
-void handleResetChronometer() {
+void handleResetChronometer() 
+{
   runningChronometer = false;
   elapsedChronometerTime = 0;
   server.send(200, "text/plain", "Chronometer reset");
+
 }
 
-// Funcții pentru Timer
-void handleStartTimer() {
-  if (server.hasArg("time")) {
+// functii timer
+void handleStartTimer() 
+{
+  if (server.hasArg("time")) 
+  {
     countdownTime = server.arg("time").toInt();
     startTimerTime = millis();
     runningTimer = true;
+
     server.send(200, "text/plain", "Timer started");
-  } else {
+
+  } 
+  else 
+  {
     server.send(400, "text/plain", "Time not provided");
   }
 }
 
-void handleStopTimer() {
-  if (runningTimer) {
+void handleStopTimer() 
+{
+  if (runningTimer) 
+  {
     countdownTime -= (millis() - startTimerTime) / 1000;
     runningTimer = false;
   }
+
   server.send(200, "text/plain", "Timer stopped");
 }
 
-void handleResetTimer() {
+void handleResetTimer() 
+{
   runningTimer = false;
   countdownTime = 0;
   server.send(200, "text/plain", "Timer reset");
 }
 
-// Configurare inițială
-void setup() {
+// setup
+void setup() 
+{
   Serial.begin(115200);
 
-  if (WiFi.softAP(ssid, password)) {
+  if (WiFi.softAP(ssid, password)) 
+  {
     Serial.println("Wi-Fi AP started!");
     Serial.print("IP Address: ");
     Serial.println(WiFi.softAPIP());
-  } else {
+
+  } 
+  else 
+  {
     Serial.println("Error: Could not start Wi-Fi!");
     while (1);
   }
 
-  // Definire rute
+  // rute
   server.on("/", []() { server.send(200, "text/html", generateHTML()); });
   server.on("/time", handleTime);
 
@@ -271,10 +317,12 @@ void setup() {
   server.on("/resetLapCounter", handleResetLapCounter);
 
   server.begin();
+
   Serial.println("HTTP server started.");
 }
 
-// Buclă principală
-void loop() {
+// main loop
+void loop() 
+{
   server.handleClient();
 }
